@@ -64,6 +64,7 @@ class UserProfile:
     horizon_months: int
     age: int
     monthly_contribution: Decimal = Decimal("0")
+    brokerage: str = "generic"
 
     @property
     def horizon_years(self) -> float:

@@ -9,6 +9,7 @@ from rich.prompt import FloatPrompt, IntPrompt, Prompt
 
 from investx.cli.validators import validate_age, validate_amount, validate_horizon
 from investx.models.user_profile import Objective, RiskProfile, UserProfile
+from investx.services.brokerages import get_all_brokerages
 
 console = Console()
 
@@ -87,6 +88,22 @@ def _prompt_contribution() -> Decimal:
         return Decimal("0")
 
 
+def _prompt_brokerage() -> str:
+    brokerages = get_all_brokerages()
+    console.print("\n[bold]Qual sua corretora?[/bold]")
+    for i, b in enumerate(brokerages, 1):
+        console.print(f"  [cyan]{i}[/cyan]. {b.name}")
+    console.print(f"  [cyan]{len(brokerages) + 1}[/cyan]. Outra / Nao tenho")
+
+    while True:
+        choice = IntPrompt.ask("Escolha", console=console, default=len(brokerages) + 1)
+        if 1 <= choice <= len(brokerages):
+            return brokerages[choice - 1].id
+        if choice == len(brokerages) + 1:
+            return "generic"
+        console.print(f"[red]Escolha entre 1 e {len(brokerages) + 1}[/red]")
+
+
 def collect_profile_interactive() -> UserProfile:
     """Collect all user inputs interactively."""
     console.print("\n[bold blue]===  InvestX - Analise de Investimentos  ===[/bold blue]\n")
@@ -97,6 +114,7 @@ def collect_profile_interactive() -> UserProfile:
     horizon = _prompt_horizon()
     age = _prompt_age()
     contribution = _prompt_contribution()
+    brokerage = _prompt_brokerage()
 
     return UserProfile(
         amount=amount,
@@ -105,4 +123,5 @@ def collect_profile_interactive() -> UserProfile:
         horizon_months=horizon,
         age=age,
         monthly_contribution=contribution,
+        brokerage=brokerage,
     )

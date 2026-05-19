@@ -11,12 +11,14 @@ from investx.models.portfolio import Portfolio
 from investx.models.user_profile import UserProfile
 from investx.report.sections.action_plan import render_action_plan
 from investx.report.sections.allocation import render_allocation
+from investx.report.sections.brokerage import render_brokerage
 from investx.report.sections.header import render_header
 from investx.report.sections.liquidity import render_liquidity
 from investx.report.sections.products import render_products
 from investx.report.sections.projections import render_projections
 from investx.report.sections.risk_analysis import render_risk_analysis
 from investx.report.sections.tax import render_tax
+from investx.services.brokerages import BrokerageInfo
 from investx.services.projections import ProjectionResult
 
 
@@ -26,6 +28,7 @@ def generate_report(
     portfolio: Portfolio,
     indicators: MarketIndicators,
     projection: ProjectionResult,
+    brokerage_info: BrokerageInfo | None = None,
 ) -> None:
     """Render the full investment report to the console."""
     console.print()
@@ -35,7 +38,7 @@ def generate_report(
     console.print()
 
     # 1. Header: profile + market indicators
-    render_header(console, profile, indicators)
+    render_header(console, profile, indicators, brokerage_info)
     console.print()
 
     # 2. Allocation table
@@ -70,8 +73,14 @@ def generate_report(
 
     # 8. Action plan
     console.print(Rule("[bold]Plano de Acao[/bold]"))
-    render_action_plan(console, profile, portfolio, indicators)
+    render_action_plan(console, profile, portfolio, indicators, brokerage_info)
     console.print()
+
+    # 9. Brokerage tips (only for non-generic)
+    if brokerage_info and brokerage_info.id != "generic":
+        console.print(Rule("[bold]Onde Investir na Sua Corretora[/bold]"))
+        render_brokerage(console, portfolio, brokerage_info)
+        console.print()
 
     # Footer
     console.print(

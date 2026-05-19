@@ -58,6 +58,7 @@ def analyze(
     horizon: Optional[int] = typer.Option(None, "--horizon", "-h", help="Horizonte em meses"),
     age: Optional[int] = typer.Option(None, "--age", help="Idade do investidor"),
     contribution: float = typer.Option(0, "--contribution", "-c", help="Aporte mensal em R$"),
+    brokerage: Optional[str] = typer.Option(None, "--brokerage", "-b", help="Corretora: nubank, xp, btg, inter, rico"),
     no_interactive: bool = typer.Option(False, "--no-interactive", help="Modo nao-interativo (requer todos os parametros)"),
 ) -> None:
     """Analisa seu perfil e gera recomendacoes de investimento."""
@@ -67,6 +68,7 @@ def analyze(
     from investx.models.user_profile import RiskProfile, UserProfile
     from investx.report.generator import generate_report
     from investx.services.allocation import build_portfolio
+    from investx.services.brokerages import get_brokerage
     from investx.services.projections import generate_projections
 
     profile: UserProfile
@@ -110,6 +112,7 @@ def analyze(
             horizon_months=horizon,  # type: ignore[arg-type]
             age=age,  # type: ignore[arg-type]
             monthly_contribution=Decimal(str(contribution)),
+            brokerage=brokerage or "generic",
         )
     else:
         profile = collect_profile_interactive()
@@ -124,8 +127,11 @@ def analyze(
     # Generate projections
     projection = generate_projections(profile, portfolio, indicators)
 
+    # Resolve brokerage
+    brokerage_info = get_brokerage(profile.brokerage)
+
     # Render report
-    generate_report(console, profile, portfolio, indicators, projection)
+    generate_report(console, profile, portfolio, indicators, projection, brokerage_info)
 
 
 @app.command()

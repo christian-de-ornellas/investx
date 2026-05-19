@@ -11,6 +11,7 @@ from investx.models.portfolio import Portfolio
 from investx.models.products import LiquidityType, ProductCategory
 from investx.models.user_profile import Objective, UserProfile
 from investx.report.formatters import fmt_currency
+from investx.services.brokerages import BrokerageInfo
 
 
 def render_action_plan(
@@ -18,17 +19,25 @@ def render_action_plan(
     profile: UserProfile,
     portfolio: Portfolio,
     indicators: MarketIndicators,
+    brokerage_info: BrokerageInfo | None = None,
 ) -> None:
     steps: list[str] = []
     step = 0
 
     # Step 1: Open brokerage
     step += 1
-    steps.append(
-        f"[bold cyan]{step}.[/bold cyan] Abra conta em uma corretora de confianca "
-        "(ex: XP, Rico, NuInvest, BTG, Inter). Prefira corretoras com taxa zero "
-        "para Tesouro Direto e boas opcoes de renda fixa."
-    )
+    if brokerage_info and brokerage_info.id != "generic":
+        steps.append(
+            f"[bold cyan]{step}.[/bold cyan] Acesse sua conta na "
+            f"[bold]{brokerage_info.name}[/bold] ({brokerage_info.url}). "
+            "Caso ainda nao tenha conta, abra uma — o processo e 100% digital."
+        )
+    else:
+        steps.append(
+            f"[bold cyan]{step}.[/bold cyan] Abra conta em uma corretora de confianca "
+            "(ex: XP, Rico, NuInvest, BTG, Inter). Prefira corretoras com taxa zero "
+            "para Tesouro Direto e boas opcoes de renda fixa."
+        )
 
     # Step 2: Emergency reserve check
     has_emergency = any(

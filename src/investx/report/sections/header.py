@@ -10,12 +10,14 @@ from rich.text import Text
 from investx.models.market_data import MarketIndicators
 from investx.models.user_profile import UserProfile
 from investx.report.formatters import fmt_currency, fmt_months, fmt_pct
+from investx.services.brokerages import BrokerageInfo
 
 
 def render_header(
     console: Console,
     profile: UserProfile,
     indicators: MarketIndicators,
+    brokerage_info: BrokerageInfo | None = None,
 ) -> None:
     # Profile summary
     profile_table = Table(show_header=False, box=None, padding=(0, 2))
@@ -29,6 +31,8 @@ def render_header(
     profile_table.add_row("Perfil de risco:", profile.risk_profile.label)
     profile_table.add_row("Horizonte:", fmt_months(profile.horizon_months))
     profile_table.add_row("Idade:", f"{profile.age} anos")
+    if brokerage_info and brokerage_info.id != "generic":
+        profile_table.add_row("Corretora:", brokerage_info.name)
 
     console.print(Panel(profile_table, title="[bold]Perfil do Investidor[/bold]", border_style="blue"))
 
