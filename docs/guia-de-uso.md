@@ -9,6 +9,7 @@
    - [Modo Interativo](#modo-interativo)
    - [Modo Nao-Interativo](#modo-nao-interativo)
    - [Parametros](#parametros)
+   - [Corretoras Suportadas](#corretoras-suportadas)
 5. [Exemplos por Perfil](#exemplos-por-perfil)
 6. [Secoes do Relatorio](#secoes-do-relatorio)
 7. [Variaveis de Ambiente](#variaveis-de-ambiente)
@@ -112,6 +113,7 @@ O fluxo interativo solicita:
 4. **Horizonte** — em meses (ex: `24`)
 5. **Idade** — em anos (ex: `32`)
 6. **Aporte mensal** — valor mensal adicional (ex: `2000`, ou `0` para nenhum)
+7. **Corretora** — escolha numerica entre 5 corretoras + "Outra/Nao tenho"
 
 ### Modo Nao-Interativo
 
@@ -128,6 +130,20 @@ uv run investx analyze \
   --no-interactive
 ```
 
+Com corretora personalizada:
+
+```bash
+uv run investx analyze \
+  --amount 50000 \
+  --objective mixed \
+  --risk moderate \
+  --horizon 24 \
+  --age 32 \
+  --contribution 2000 \
+  --brokerage nubank \
+  --no-interactive
+```
+
 ### Parametros
 
 | Parametro         | Atalho | Tipo   | Obrigatorio* | Descricao                          |
@@ -138,6 +154,7 @@ uv run investx analyze \
 | `--horizon`       | `-h`   | int    | Sim          | Horizonte em meses (1 a 480)       |
 | `--age`           |        | int    | Sim          | Idade do investidor (16 a 100)     |
 | `--contribution`  | `-c`   | float  | Nao          | Aporte mensal em R$ (padrao: 0)    |
+| `--brokerage`     | `-b`   | string | Nao          | Corretora (ver tabela abaixo)      |
 | `--no-interactive`|        | flag   | Nao          | Desativa modo interativo           |
 
 *Obrigatorio apenas no modo `--no-interactive`.
@@ -161,6 +178,36 @@ uv run investx analyze \
 | `moderate`     | Moderado    |   2   |
 | `bold`         | Arrojado    |   3   |
 | `aggressive`   | Agressivo   |   4   |
+
+#### Valores para `--brokerage`
+
+| Valor     | Corretora         | Descricao                                      |
+|-----------|-------------------|-------------------------------------------------|
+| `nubank`  | Nubank / NuInvest | Nu Caixinha, NuInvest, Tesouro taxa zero        |
+| `xp`      | XP Investimentos  | Maior variedade de renda fixa, carteiras recomendadas |
+| `btg`     | BTG Pactual       | CDB BTG proprio, fundos exclusivos              |
+| `inter`   | Banco Inter       | Cofrinhos, super app, cashback investivel       |
+| `rico`    | Rico Investimentos| Interface simplificada, mesma plataforma XP     |
+
+Quando nao informado, o relatorio usa o modo generico (sem secao de corretora). No modo interativo, a corretora e selecionada via menu numerado.
+
+### Corretoras Suportadas
+
+Ao informar sua corretora, o relatorio inclui:
+
+- **Nome da corretora** no painel "Perfil do Investidor"
+- **Plano de Acao personalizado** — o passo 1 indica a corretora e URL em vez de sugestoes genericas
+- **Secao "Onde Investir na Sua Corretora"** — tabela com o caminho de cada produto na plataforma, destaques e pontos de atencao
+
+Dicas incluidas para cada corretora:
+
+| Corretora | Destaques                                                        |
+|-----------|------------------------------------------------------------------|
+| Nubank    | Nu Caixinha 100% CDI D+0, Tesouro taxa zero ate R$10k           |
+| XP        | Maior catalogo de renda fixa, carteiras recomendadas de analistas|
+| BTG       | CDB BTG proprio, fundos exclusivos, plataforma robusta          |
+| Inter     | Cofrinhos para reserva, cashback investivel, super app           |
+| Rico      | Interface amigavel, Carteira Rico com sugestoes prontas          |
 
 ---
 
@@ -251,15 +298,51 @@ uv run investx analyze \
 
 Resultado esperado: carteira focada em FIIs (dividendos mensais), Tesouro IPCA+ com Juros Semestrais, LCI/LCA e debentures incentivadas.
 
+### Medio Prazo com Corretora (Nubank)
+
+Investidor de 32 anos com R$ 50.000 no Nubank:
+
+```bash
+uv run investx analyze \
+  --amount 50000 \
+  --objective mixed \
+  --risk moderate \
+  --horizon 24 \
+  --age 32 \
+  --contribution 2000 \
+  --brokerage nubank \
+  --no-interactive
+```
+
+Resultado esperado: carteira diversificada + secao "Onde Investir na Sua Corretora" com dicas como "App Nubank > Investimentos > Tesouro Direto" e destaques da Nu Caixinha.
+
+### Crescimento com Corretora (XP)
+
+Investidor de 28 anos na XP buscando crescimento:
+
+```bash
+uv run investx analyze \
+  --amount 100000 \
+  --objective growth \
+  --risk bold \
+  --horizon 60 \
+  --age 28 \
+  --contribution 5000 \
+  --brokerage xp \
+  --no-interactive
+```
+
+Resultado esperado: carteira agressiva + secao com dicas da XP como "Portal XP > Bolsa > busque 'BOVA11'" e destaque para carteiras recomendadas.
+
 ---
 
 ## Secoes do Relatorio
 
-O relatorio gerado contem 8 secoes:
+O relatorio gerado contem ate 10 secoes (9 fixas + 1 condicional):
 
 ### 1. Perfil do Investidor
 
-Resume os dados informados: valor, aporte mensal, objetivo, perfil de risco, horizonte e idade.
+Resume os dados informados: valor, aporte mensal, objetivo, perfil de risco, horizonte e idade. Se uma corretora foi selecionada (diferente de generica), o nome da corretora tambem e exibido.
 
 ### 2. Indicadores de Mercado
 
@@ -320,13 +403,21 @@ Para cada produto, detalha:
 ### 9. Plano de Acao
 
 Roteiro passo-a-passo personalizado:
-1. Abertura de conta em corretora
+1. Abertura de conta em corretora — se uma corretora foi selecionada, o passo indica o nome e a URL da corretora; caso contrario, sugere opcoes genericas
 2. Montagem de reserva de emergencia (se aplicavel)
 3. Ordem de investimento (priorizando liquidez)
 4. Configuracao de aportes mensais (se informado)
 5. Estrategia de rebalanceamento
 6. Otimizacao fiscal
 7. Revisao periodica
+
+### 10. Onde Investir na Sua Corretora (condicional)
+
+Exibida apenas quando uma corretora especifica e selecionada (diferente de "Outra/Generica"). Contem:
+
+- **Tabela de produtos** — para cada produto da carteira recomendada, indica o caminho na plataforma da corretora (ex: "App Nubank > Investimentos > Tesouro Direto")
+- **Destaques** — vantagens e diferenciais da corretora (ex: "Nu Caixinha rende 100% CDI com resgate instantaneo")
+- **Pontos de atencao** — limitacoes e cuidados (ex: "Menor variedade de CDBs comparado a corretoras maiores")
 
 ---
 
@@ -387,6 +478,15 @@ Produtos isentos de IR (LCI, LCA, debentures incentivadas) parecem render menos,
 ### Posso usar o InvestX sem internet?
 
 Sim. Se a API do BCB estiver inacessivel, o sistema usa valores fallback. Voce tambem pode configurar as taxas manualmente via variaveis de ambiente.
+
+### Como funciona a selecao de corretora?
+
+Voce pode informar sua corretora de duas formas:
+
+- **Modo interativo**: apos os demais inputs, um menu numerado lista as 5 corretoras suportadas + "Outra/Nao tenho"
+- **Modo nao-interativo**: use `--brokerage nubank` (ou `xp`, `btg`, `inter`, `rico`)
+
+Se voce nao informar ou escolher "Outra", o relatorio funciona normalmente sem a secao de corretora. Se informar, o relatorio inclui dicas especificas de onde encontrar cada produto recomendado na plataforma da sua corretora.
 
 ### Quais produtos estao no catalogo?
 

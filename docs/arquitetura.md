@@ -25,11 +25,11 @@
 
 O InvestX e um sistema CLI que:
 
-1. Coleta o perfil do investidor (valor, objetivo, risco, horizonte, idade)
+1. Coleta o perfil do investidor (valor, objetivo, risco, horizonte, idade, corretora)
 2. Busca indicadores de mercado em tempo real da API do Banco Central
 3. Constroi uma carteira otimizada com base em templates de alocacao
 4. Calcula projecoes de retorno com juros compostos
-5. Gera um relatorio completo formatado no terminal
+5. Gera um relatorio completo formatado no terminal, com dicas personalizadas por corretora
 
 ```
                     ┌─────────────┐
@@ -107,6 +107,7 @@ investx/
     │   └── fallback.py            # Valores fallback quando API indisponivel
     ├── services/
     │   ├── products_catalog.py    # Catalogo de 17 produtos brasileiros
+    │   ├── brokerages.py          # Catalogo de corretoras e dicas por plataforma
     │   ├── tax.py                 # IR regressivo, IOF, isencoes
     │   ├── risk.py                # Score de risco, ajustes
     │   ├── allocation.py          # Motor de alocacao (24 templates)
@@ -126,10 +127,11 @@ investx/
             ├── risk_analysis.py   # Analise de risco
             ├── liquidity.py       # Analise de liquidez
             ├── tax.py             # Consideracoes fiscais
-            └── action_plan.py     # Plano de acao passo-a-passo
+            ├── action_plan.py     # Plano de acao passo-a-passo
+            └── brokerage.py       # Dicas personalizadas por corretora
 ```
 
-Total: **29 arquivos Python** organizados em 7 pacotes.
+Total: **31 arquivos Python** organizados em 7 pacotes.
 
 ---
 
@@ -165,7 +167,7 @@ Classe `Settings` (Pydantic Settings) com configuracoes ajustaveis via variaveis
 
 - **`Objective`** (Enum) — 6 objetivos: emergency, short_term, mixed, retirement, growth, income
 - **`RiskProfile`** (Enum) — 4 perfis: conservative, moderate, bold, aggressive
-- **`UserProfile`** (dataclass) — agrega todos os inputs do usuario
+- **`UserProfile`** (dataclass) — agrega todos os inputs do usuario (incluindo `brokerage: str` que identifica a corretora selecionada, padrao `"generic"`)
 
 #### `models/products.py`
 
@@ -219,6 +221,19 @@ Catalogo de 17 produtos do mercado brasileiro:
 Cada produto tem: nome, categoria, tipo de imposto, liquidez, score de risco (1-10), investimento minimo, retorno esperado e tags.
 
 Funcoes auxiliares: `get_all_products()`, `get_products_by_category()`, `get_products_by_risk()`, `get_products_by_tag()`.
+
+#### `services/brokerages.py`
+
+Catalogo de corretoras brasileiras com informacoes especificas de cada plataforma:
+
+- **`BrokerageInfo`** (dataclass frozen) — id, name, url, product_tips, highlights, caveats
+- **`product_tips`** — `dict[str, str]` que mapeia o nome do produto (ex: "Tesouro Selic") para o caminho na plataforma (ex: "App Nubank > Investimentos > Tesouro Direto")
+- **`highlights`** — lista de vantagens/diferenciais da corretora
+- **`caveats`** — lista de pontos de atencao/limitacoes
+
+5 corretoras suportadas: Nubank/NuInvest, XP, BTG Pactual, Inter, Rico. Fallback generico para quando nenhuma corretora e selecionada.
+
+Funcoes: `get_brokerage(id) -> BrokerageInfo | None`, `get_all_brokerages() -> list[BrokerageInfo]` (exclui generico).
 
 #### `services/tax.py`
 
@@ -292,22 +307,23 @@ Formatadores para o padrao brasileiro:
 
 #### `report/generator.py`
 
-Orquestra a renderizacao do relatorio completo chamando as 8 secoes em ordem, com separadores visuais (`Rule`) entre elas.
+Orquestra a renderizacao do relatorio completo chamando as secoes em ordem, com separadores visuais (`Rule`) entre elas. Aceita parametro opcional `brokerage_info: BrokerageInfo | None` que e repassado para as secoes relevantes (header, action_plan, brokerage). A secao de corretora so e renderizada quando `brokerage_info` existe e nao e generica.
 
 #### `report/sections/`
 
-8 secoes independentes, cada uma recebendo `Console` + dados relevantes:
+9 secoes independentes, cada uma recebendo `Console` + dados relevantes:
 
-| Secao             | Dados de entrada                           |
-|-------------------|--------------------------------------------|
-| `header.py`       | UserProfile, MarketIndicators              |
-| `allocation.py`   | Portfolio                                  |
-| `products.py`     | Portfolio, MarketIndicators                |
-| `projections.py`  | ProjectionResult                           |
-| `risk_analysis.py`| UserProfile, Portfolio                     |
-| `liquidity.py`    | Portfolio                                  |
-| `tax.py`          | UserProfile, Portfolio                     |
-| `action_plan.py`  | UserProfile, Portfolio, MarketIndicators   |
+| Secao             | Dados de entrada                                       |
+|-------------------|--------------------------------------------------------|
+| `header.py`       | UserProfile, MarketIndicators, BrokerageInfo?          |
+| `allocation.py`   | Portfolio                                              |
+| `products.py`     | Portfolio, MarketIndicators                            |
+| `projections.py`  | ProjectionResult                                       |
+| `risk_analysis.py`| UserProfile, Portfolio                                 |
+| `liquidity.py`    | Portfolio                                              |
+| `tax.py`          | UserProfile, Portfolio                                 |
+| `action_plan.py`  | UserProfile, Portfolio, MarketIndicators, BrokerageInfo?|
+| `brokerage.py`    | Portfolio, BrokerageInfo (condicional)                 |
 
 ---
 
@@ -321,7 +337,7 @@ Aplicacao Typer com 3 comandos:
 - **`analyze`** — fluxo completo (interativo ou via parametros)
 - **`version`** — exibe versao
 
-O comando `analyze` aceita modo interativo (padrao) e nao-interativo (`--no-interactive`).
+O comando `analyze` aceita modo interativo (padrao) e nao-interativo (`--no-interactive`). Aceita tambem `--brokerage` / `-b` para selecionar a corretora.
 
 #### `cli/prompts.py`
 
@@ -329,6 +345,7 @@ Prompts interativos usando `rich.prompt`:
 
 - Cada input tem validacao com loop de retry
 - Opcoes enumeradas para escolhas categoricas
+- Inclui prompt de corretora (`_prompt_brokerage()`) com menu numerado das 5 corretoras + opcao generica
 
 #### `cli/validators.py`
 
@@ -343,9 +360,9 @@ Validacao de inputs:
 ## Fluxo de Execucao
 
 ```
-1. CLI recebe inputs (interativo ou parametros)
+1. CLI recebe inputs (interativo ou parametros, incluindo corretora)
        │
-2. Constroi UserProfile
+2. Constroi UserProfile (com brokerage)
        │
 3. fetch_market_indicators() ──────► API BCB ──► MarketIndicators
        │                               │
@@ -365,10 +382,12 @@ Validacao de inputs:
        │   - Simula juros compostos mes a mes
        │   - Calcula impostos estimados
        │
-7. generate_report(console, profile, portfolio, indicators, projection)
-       │   - Renderiza 8 secoes no terminal
+7. get_brokerage(profile.brokerage) ──────► BrokerageInfo | None
        │
-8. Output formatado no terminal
+8. generate_report(console, profile, portfolio, indicators, projection, brokerage_info)
+       │   - Renderiza 9 secoes no terminal (+ secao de corretora se nao-generica)
+       │
+9. Output formatado no terminal
 ```
 
 ---
@@ -558,6 +577,32 @@ InvestmentProduct(
 ### Adicionar um novo template de alocacao
 
 Edite `services/allocation.py` e adicione uma entrada em `ALLOCATION_TEMPLATES` e o mapeamento de tag para produto em `_pick_product()`.
+
+### Adicionar uma nova corretora
+
+Edite `services/brokerages.py` e adicione uma entrada no dicionario `_BROKERAGES`:
+
+```python
+"nome_id": BrokerageInfo(
+    id="nome_id",
+    name="Nome da Corretora",
+    url="https://www.corretora.com.br",
+    product_tips={
+        "Tesouro Selic": "Caminho na plataforma para Tesouro Selic",
+        "CDB Liquidez Diaria": "Caminho para CDB",
+        # ... dicas para cada produto do catalogo
+    },
+    highlights=[
+        "Vantagem 1 da corretora",
+        "Vantagem 2 da corretora",
+    ],
+    caveats=[
+        "Ponto de atencao 1",
+    ],
+),
+```
+
+A corretora aparecera automaticamente no menu interativo e sera aceita via `--brokerage nome_id`.
 
 ### Adicionar uma nova secao ao relatorio
 
